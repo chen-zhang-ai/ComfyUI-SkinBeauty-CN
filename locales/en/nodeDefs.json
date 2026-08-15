@@ -1,0 +1,88 @@
+{
+  "SkinBeautySettingsCN": {
+    "display_name": "Skin Beauty | Settings",
+    "description": "One shared panel for skin-tone correction presets and fine controls.",
+    "inputs": {
+      "预设": {
+        "name": "Preset",
+        "tooltip": "Choose a starting preset; changing a slider switches to Custom.",
+        "options": {
+          "自定义": "Custom",
+          "关闭": "Off",
+          "低档·自然提亮": "Low · Natural Lift",
+          "中档·自然冷白": "Medium · Natural Cool White",
+          "高档·通透冷白": "High · Clear Cool White",
+          "冷白皮": "Cool White",
+          "粉润白": "Rosy White",
+          "奶油白": "Creamy White"
+        }
+      },
+      "总强度": {"name": "Intensity", "tooltip": "Overall blend between the original and corrected skin."},
+      "美白": {"name": "Whitening", "tooltip": "Raises skin lightness while highlight protection limits clipping."},
+      "冷暖": {"name": "Cool / Warm", "tooltip": "Positive values reduce yellow and cool the skin; negative values warm it."},
+      "红润": {"name": "Rosy Tone", "tooltip": "Adds or removes a restrained red/rosy component."},
+      "匀肤": {"name": "Evenness", "tooltip": "Balances local skin luminance and chroma differences."},
+      "暗部提亮": {"name": "Shadow Lift", "tooltip": "Raises darker skin regions more than highlights."},
+      "高光保护": {"name": "Highlight Protection", "tooltip": "Protects bright forehead, nose, and cheek highlights."},
+      "饱和度": {"name": "Saturation", "tooltip": "Adjusts corrected skin chroma."},
+      "平滑": {"name": "Smoothing", "tooltip": "Applies restrained local smoothing inside the skin mask."},
+      "纹理保留": {"name": "Texture Preservation", "tooltip": "Preserves pores, fine hair, and local detail."},
+      "肤色识别": {"name": "Skin Detection", "tooltip": "Controls the coverage of the adaptive skin-color probability mask."},
+      "蒙版羽化": {"name": "Mask Feather", "tooltip": "Softens transitions between selected skin and surrounding areas."}
+    },
+    "outputs": {
+      "0": {"name": "Beauty Settings", "tooltip": "Configuration shared with one or more processor nodes."},
+      "1": {"name": "Settings Summary", "tooltip": "Bilingual summary of the effective settings."}
+    }
+  },
+  "SkinBeautyProcessorCN": {
+    "display_name": "Skin Beauty | Process + Preview",
+    "description": "Corrects detected skin, supports batches and external masks, and keeps full-resolution IMAGE outputs.",
+    "inputs": {
+      "图像": {"name": "Image", "tooltip": "ComfyUI IMAGE input; same-size batches are supported."},
+      "美白参数": {"name": "Beauty Settings", "tooltip": "Connect the Skin Beauty settings node."},
+      "蒙版模式": {
+        "name": "Mask Mode",
+        "tooltip": "Choose automatic skin selection, external-mask fusion, external-only, or full-frame grading.",
+        "options": {
+          "自动肤色（推荐）": "Automatic skin (recommended)",
+          "外部遮罩优先": "Prefer external mask",
+          "仅外部遮罩": "External mask only",
+          "全图调色": "Full-frame grading"
+        }
+      },
+      "语义蒙版": {
+        "name": "Semantic Mask",
+        "tooltip": "Automatic mode never downloads. The explicit download mode downloads only the pinned model and never installs Python packages.",
+        "options": {
+          "自动：已有模型则使用": "Auto: use an existing model",
+          "纯算法：零依赖": "Pure algorithm: zero extra dependencies",
+          "MediaPipe：允许首次下载": "MediaPipe: allow model download only; never installs Python packages"
+        }
+      },
+      "批处理": {
+        "name": "Batch Processing",
+        "tooltip": "Sequential mode reduces peak memory; parallel mode is for small same-size batches.",
+        "options": {
+          "自动：逐张省显存": "Auto: sequential to save memory",
+          "逐张处理": "Sequential",
+          "整批并行": "Parallel batch"
+        }
+      },
+      "计算设备": {
+        "name": "Compute Device",
+        "tooltip": "Auto chooses a suitable device and can fall back after CUDA out-of-memory.",
+        "options": {"自动": "Auto", "GPU": "GPU", "CPU": "CPU"}
+      },
+      "生成节点预览": {"name": "Generate Node Preview", "tooltip": "Creates a temporary UI-only PNG; formal IMAGE outputs remain full resolution."},
+      "实时精确预览": {"name": "Live Exact Preview", "tooltip": "Refreshes the real backend preview after controls remain idle for about 0.5 seconds."},
+      "外部遮罩": {"name": "External Mask", "tooltip": "Optional MASK input; external-mask-only is the highest-precision path."}
+    },
+    "outputs": {
+      "0": {"name": "Corrected Image", "tooltip": "Full-resolution IMAGE output with original batch and extra channels preserved."},
+      "1": {"name": "Skin Mask", "tooltip": "BHW skin mask used by the correction pipeline."},
+      "2": {"name": "Preview Image", "tooltip": "Full-resolution IMAGE output; only the embedded UI thumbnail is resized."},
+      "3": {"name": "Processing Report", "tooltip": "Bilingual processing, mask, device, and fallback report."}
+    }
+  }
+}

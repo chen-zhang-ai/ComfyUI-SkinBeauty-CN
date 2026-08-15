@@ -447,9 +447,19 @@ def process_images(
     return result_bhwc, mask[:, 0].to(device=original_device, dtype=torch.float32)
 
 
-def config_summary(config: BeautyConfig) -> str:
-    return (
+def config_summary(config: BeautyConfig, locale: Optional[str] = None) -> str:
+    zh = (
         f"{config.preset}｜总强度 {config.intensity:.0f}｜美白 {config.whitening:.0f}｜"
         f"冷暖 {config.coolness:+.0f}｜红润 {config.rosy:+.0f}｜匀肤 {config.evenness:.0f}｜"
         f"平滑 {config.smoothing:.0f}｜纹理保留 {config.texture_preserve:.0f}"
     )
+    en = (
+        f"{config.preset} | intensity {config.intensity:.0f} | whitening {config.whitening:.0f} | "
+        f"coolness {config.coolness:+.0f} | rosy {config.rosy:+.0f} | evenness {config.evenness:.0f} | "
+        f"smoothing {config.smoothing:.0f} | texture {config.texture_preserve:.0f}"
+    )
+    if locale == "zh":
+        return zh
+    if locale == "en":
+        return en
+    return f"{zh}\n{en}"

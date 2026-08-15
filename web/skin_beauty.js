@@ -4,6 +4,82 @@ import { api } from "../../scripts/api.js";
 const SETTINGS_CLASS = "SkinBeautySettingsCN";
 const PROCESSOR_CLASS = "SkinBeautyProcessorCN";
 
+const TEXT = {
+  en: {
+    waiting: "Waiting for a source image…",
+    connectSource: "Connect a source image and settings node",
+    compareHint: "Connect a source image to compare before and after",
+    before: "Before",
+    after: "After",
+    refreshExact: "Refresh exact preview (no video run)",
+    exactProcessing: "Processing exact preview…",
+    exactComplete: "Exact preview ready",
+    exactFailed: "Exact preview failed",
+    parametersUpdated: "Parameters changed; waiting for exact preview…",
+    clickPreview: "Parameters changed; click exact preview",
+    modeUpdated: "Mode changed; click exact preview",
+    nodeComplete: "Node processing complete",
+    imageLoadFailed: "Reference image failed to load",
+    resultLoadFailed: "Node result preview failed to load",
+    modelReady: "MediaPipe semantic model ready",
+    modelFallback: "Using the pure algorithm fallback",
+    modelDownloadOnly: "MediaPipe: allow model download only; never installs Python packages",
+  },
+  zh: {
+    waiting: "等待参考图…",
+    connectSource: "请连接参考图和参数面板",
+    compareHint: "连接参考图后显示美白前后对比",
+    before: "原图",
+    after: "结果",
+    refreshExact: "刷新精确预览（不跑视频）",
+    exactProcessing: "精确预览处理中…",
+    exactComplete: "精确预览完成",
+    exactFailed: "精确预览失败",
+    parametersUpdated: "参数已更新，等待精确预览…",
+    clickPreview: "参数已更新，点击精确预览",
+    modeUpdated: "模式已更新，点击精确预览",
+    nodeComplete: "节点处理完成",
+    imageLoadFailed: "参考图加载失败",
+    resultLoadFailed: "节点结果预览加载失败",
+    modelReady: "MediaPipe 语义模型已就绪",
+    modelFallback: "正在使用纯算法安全回退",
+    modelDownloadOnly: "MediaPipe：仅允许下载模型，不安装Python包",
+  },
+};
+
+function currentLocale() {
+  let value = "";
+  try {
+    value = app.extensionManager?.setting?.get?.("Comfy.Locale") || "";
+  } catch (_) {
+    // The public setting API may be unavailable on older ComfyUI builds.
+  }
+  if (!value) {
+    try {
+      value = app.ui?.settings?.getSettingValue?.("Comfy.Locale") || "";
+    } catch (_) {
+      // Continue through the documented DOM/browser fallbacks.
+    }
+  }
+  if (!value) value = document.documentElement?.lang || "";
+  if (!value) value = navigator.language || "";
+  const normalized = String(value).replace(/_/g, "-").toLowerCase();
+  return ["zh", "zh-cn", "zh-hans"].includes(normalized) ? "zh" : "en";
+}
+
+function text(key) {
+  const locale = currentLocale();
+  return TEXT[locale]?.[key] ?? TEXT.en[key] ?? key;
+}
+
+function refreshLocaleText() {
+  for (const node of app.graph?._nodes || []) {
+    if (node.comfyClass === PROCESSOR_CLASS || node.type === PROCESSOR_CLASS) {
+      node.setDirtyCanvas(true, true);
+    }
+  }
+}
+
 const PRESETS = {
   "关闭": [0, 0, 0, 0, 0, 0, 80, 0, 0, 100, 58, 12],
   "低档·自然提亮": [48, 34, 20, 5, 16, 10, 78, -4, 6, 94, 56, 10],
@@ -100,7 +176,7 @@ function loadImage(url) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("参考图加载失败"));
+    image.onerror = () => reject(new Error(text("imageLoadFailed")));
     image.src = url;
   });
 }
@@ -199,7 +275,7 @@ function compareWidget() {
       ctx.font = "12px sans-serif";
       ctx.fillStyle = state.error ? "#ff9b9b" : "#c5d3dc";
       ctx.fillText(
-        ellipsizedText(ctx, state.status || "等待参考图…", width - padding * 2),
+        ellipsizedText(ctx, state.status || text(state.statusKey || "waiting"), width - padding * 2),
         padding,
         y + 15,
       );
@@ -247,7 +323,7 @@ function compareWidget() {
         ctx.fillStyle = "#7d8c95";
         ctx.font = "13px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("连接参考图后显示左右滑动对比", bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        ctx.fillText(text("compareHint"), bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
         ctx.textAlign = "left";
       }
       ctx.restore();
@@ -330,9 +406,9 @@ async function runAction(node, key, action) {
   setTimeout(() => node.setDirtyCanvas(true, true), 1150);
 }
 
-function actionButton(key, label, busyLabel, action) {
+function actionButton(key, labelKey, busyLabelKey, action) {
   return {
-    name: label,
+    name: labelKey,
     type: "SKIN_BEAUTY_ACTION",
     serialize: false,
     computeSize(width) {
@@ -372,8 +448,9 @@ function actionButton(key, label, busyLabel, action) {
       ctx.fillStyle = "#f2f7f9";
       ctx.font = "600 12px sans-serif";
       ctx.textAlign = "center";
-      const text = button.busy ? busyLabel : button.flash === "success" ? `${label}  ✓` : label;
-      ctx.fillText(text, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2 + 4 + (button.pressed ? 1 : 0));
+      const label = text(labelKey);
+      const buttonText = button.busy ? text(busyLabelKey) : button.flash === "success" ? `${label}  ✓` : label;
+      ctx.fillText(buttonText, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2 + 4 + (button.pressed ? 1 : 0));
       ctx.textAlign = "left";
       ctx.restore();
     },
@@ -416,13 +493,15 @@ async function refreshExact(node) {
   const settings = linkedSettings(node);
   const state = node._skinBeautyState;
   if (!descriptor || !settings) {
-    state.status = "请连接参考图和参数面板";
+    state.status = "";
+    state.statusKey = "connectSource";
     state.error = true;
     node.setDirtyCanvas(true, true);
     return false;
   }
   const token = ++state.exactToken;
-  state.status = "精确预览处理中…";
+  state.status = "";
+  state.statusKey = "exactProcessing";
   state.error = false;
   node.setDirtyCanvas(true, true);
   try {
@@ -438,6 +517,7 @@ async function refreshExact(node) {
           semantic_mode: collectProcessorMode(node, "语义蒙版", "自动：已有模型则使用"),
           device: collectProcessorMode(node, "计算设备", "自动"),
           node_id: node.id,
+          locale: currentLocale(),
         }),
       }),
     ]);
@@ -451,11 +531,13 @@ async function refreshExact(node) {
     canvas.height = image.naturalHeight;
     canvas.getContext("2d").drawImage(image, 0, 0);
     state.exact = canvas;
-    state.status = "精确预览完成";
+    state.status = "";
+    state.statusKey = "exactComplete";
     state.statusDetail = result.report || "";
   } catch (error) {
-    console.warn("[SkinBeauty-CN] 精确预览失败", error);
-    state.status = "精确预览失败";
+    console.warn(`[SkinBeauty-CN] ${text("exactFailed")}`, error);
+    state.status = "";
+    state.statusKey = "exactFailed";
     state.error = true;
     node.setDirtyCanvas(true, true);
     return false;
@@ -471,7 +553,8 @@ function scheduleExact(node, delay = 0) {
   // only when the next request starts.
   const scheduledToken = ++state.exactToken;
   if (delay > 0) {
-    state.status = "参数已更新，等待精确预览…";
+    state.status = "";
+    state.statusKey = "parametersUpdated";
     state.error = false;
     node.setDirtyCanvas(true, true);
   }
@@ -486,7 +569,8 @@ function refreshLinkedProcessors(settings) {
       if (node._skinBeautyAutoExact) {
         scheduleExact(node, 500);
       } else {
-        node._skinBeautyState.status = "参数已更新，点击精确预览";
+        node._skinBeautyState.status = "";
+        node._skinBeautyState.statusKey = "clickPreview";
         node.setDirtyCanvas(true, true);
       }
     }
@@ -535,7 +619,8 @@ function installProcessor(node) {
   node.color = "#376574";
   node.bgcolor = "#17262d";
   node._skinBeautyState = {
-    status: "等待参考图…",
+    status: "",
+    statusKey: "waiting",
     statusDetail: "",
     originalToken: 0,
     exactToken: 0,
@@ -555,8 +640,8 @@ function installProcessor(node) {
   if (typeof node.addCustomWidget === "function") {
     node.addCustomWidget(actionButton(
       "exact",
-      "刷新精确预览（不跑视频）",
-      "精确预览处理中…",
+      "refreshExact",
+      "exactProcessing",
       refreshExact,
     ));
     node.addCustomWidget(compareWidget());
@@ -579,7 +664,8 @@ function installProcessor(node) {
       originalMode?.call(this, value, ...args);
       if (node._skinBeautyAutoExact) scheduleExact(node, 350);
       else {
-        node._skinBeautyState.status = "模式已更新，点击精确预览";
+        node._skinBeautyState.status = "";
+        node._skinBeautyState.statusKey = "modeUpdated";
         node.setDirtyCanvas(true, true);
       }
     };
@@ -624,10 +710,11 @@ function installProcessor(node) {
       canvas.height = image.naturalHeight;
       canvas.getContext("2d").drawImage(image, 0, 0);
       this._skinBeautyState.exact = canvas;
-      this._skinBeautyState.status = "节点处理完成";
+      this._skinBeautyState.status = "";
+      this._skinBeautyState.statusKey = "nodeComplete";
       this._skinBeautyState.error = false;
       this.setDirtyCanvas(true, true);
-    }).catch((error) => console.warn("[SkinBeauty-CN] 节点结果预览加载失败", error));
+    }).catch((error) => console.warn(`[SkinBeauty-CN] ${text("resultLoadFailed")}`, error));
   };
   const originalRemoved = node.onRemoved;
   node.onRemoved = function (...args) {
@@ -646,6 +733,9 @@ function installProcessor(node) {
 
 app.registerExtension({
   name: "ComfyUI.SkinBeautyCN",
+  async setup() {
+    app.ui?.settings?.addEventListener?.("Comfy.Locale.change", refreshLocaleText);
+  },
   async nodeCreated(node) {
     if (node.comfyClass === SETTINGS_CLASS) installSettings(node);
     if (node.comfyClass === PROCESSOR_CLASS) installProcessor(node);

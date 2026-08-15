@@ -132,7 +132,8 @@ def info_node() -> Dict[str, Any]:
             "- 送入节点186的“美白图像”始终保持原始宽高。\n"
             "- 节点内缩放仅用于屏幕显示，不压缩工作流图像。\n"
             "- “自动：已有模型则使用”已组合MediaPipe语义位置和内置肤色约束。\n"
-            "- 本插件不会安装 OpenCV、MediaPipe 或其他新增依赖；已有MediaPipe时直接使用。\n"
+            "- “MediaPipe：仅允许下载模型，不安装Python包”只下载校验模型；插件绝不安装 Python 包。\n"
+            "- The MediaPipe download option downloads the verified model only and never installs Python packages.\n"
             "- 米色衣服/背景误选时，可接手工 MASK 并选“仅外部遮罩”。\n"
         ],
     }

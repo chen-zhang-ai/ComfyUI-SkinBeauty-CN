@@ -1,0 +1,90 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main, "release/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-contracts:
+    name: Static ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Compile Python
+        run: python -m compileall -q -f .
+      - name: Static, frontend, workflow, security, and packaging contracts
+        shell: bash
+        run: |
+          python -m unittest discover -s tests -p 'test_frontend.py' -v
+          python -m unittest discover -s tests -p 'test_semantic_contract.py' -v
+          python -m unittest discover -s tests -p 'test_workflow.py' -v
+          python -m unittest discover -s tests -p 'test_package_contract.py' -v
+      - name: JavaScript syntax
+        run: node --check web/skin_beauty.js
+      - name: Release source verification
+        run: python tools/build_release.py --verify-only
+
+  cpu-algorithm:
+    name: CPU Torch algorithm / Ubuntu / Python 3.12
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install isolated CI CPU Torch
+        run: python -m pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Run complete core suite
+        run: python -m unittest discover -s tests -v
+
+  optional-mediapipe:
+    name: Optional MediaPipe adapter / isolated Ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install isolated optional-test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install --disable-pip-version-check -r extras/requirements-mediapipe.txt
+      - name: Run model safety and fallback tests
+        run: python -m unittest discover -s tests -p 'test_mediapipe.py' -v
+
+  release-archive:
+    name: Deterministic Release archive
+    needs: [static-contracts, cpu-algorithm, optional-mediapipe]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python tools/build_release.py
+      - name: Verify recorded SHA256
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ComfyUI-SkinBeauty-CN-v2.2.1
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0

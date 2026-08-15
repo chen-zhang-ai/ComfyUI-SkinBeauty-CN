@@ -16,7 +16,9 @@ class FrontendContractTests(unittest.TestCase):
         cls.backend = BACKEND.read_text(encoding="utf-8")
 
     def test_short_exact_status_and_ellipsizing(self):
-        self.assertIn('state.status = "精确预览完成"', self.javascript)
+        self.assertIn('state.statusKey = "exactComplete"', self.javascript)
+        self.assertIn('exactComplete: "Exact preview ready"', self.javascript)
+        self.assertIn('exactComplete: "精确预览完成"', self.javascript)
         self.assertIn("function ellipsizedText", self.javascript)
 
     def test_custom_buttons_precede_comparer(self):
@@ -47,6 +49,7 @@ class FrontendContractTests(unittest.TestCase):
 
     def test_buttons_are_compact(self):
         self.assertIn("return [width, 23]", self.javascript)
+        self.assertIn("name: labelKey", self.javascript)
 
     def test_v1_semantic_mode_is_default(self):
         self.assertIn(
@@ -65,6 +68,14 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('"skin_beauty_preview"', self.backend)
         self.assertNotIn('"ui": {"images"', self.backend)
         self.assertIn("preview = result", self.backend)
+
+    def test_canvas_i18n_uses_public_setting_and_safe_fallbacks(self):
+        self.assertIn('setting?.get?.("Comfy.Locale")', self.javascript)
+        self.assertIn('getSettingValue?.("Comfy.Locale")', self.javascript)
+        self.assertIn("document.documentElement?.lang", self.javascript)
+        self.assertIn("navigator.language", self.javascript)
+        self.assertIn('"Comfy.Locale.change"', self.javascript)
+        self.assertIn("locale: currentLocale()", self.javascript)
 
 
 if __name__ == "__main__":

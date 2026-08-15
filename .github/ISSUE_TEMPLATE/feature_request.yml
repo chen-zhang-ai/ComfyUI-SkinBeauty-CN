@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest a compatible, dependency-conscious improvement
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or workflow need
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility, dependencies, and alternatives
+      description: Explain effects on old workflows, full-resolution output, i18n, privacy, network access, and optional dependencies.
+    validations:
+      required: true
+  - type: checkboxes
+    id: rights
+    attributes:
+      label: Content check
+      options:
+        - label: I have not attached private or unlicensed person media.
+          required: true
