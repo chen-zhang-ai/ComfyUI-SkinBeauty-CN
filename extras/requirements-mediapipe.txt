@@ -1,0 +1,3 @@
+# Optional only. Do not install this into a shared ComfyUI environment unless
+# you have reviewed its NumPy/protobuf constraints and can restore that environment.
+mediapipe==0.10.21

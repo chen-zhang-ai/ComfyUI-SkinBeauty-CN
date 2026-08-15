@@ -22,6 +22,19 @@ BATCH_MODES = ("自动：逐张省显存", "逐张处理", "整批并行")
 DEVICE_MODES = ("自动", "GPU", "CPU")
 
 
+def _normalize_locale(value: Any) -> str:
+    text = str(value or "").replace("_", "-").lower()
+    return "zh" if text in {"zh", "zh-cn", "zh-hans"} else "en"
+
+
+def _message(zh: str, en: str, locale: Optional[str] = None) -> str:
+    if locale == "zh":
+        return zh
+    if locale == "en":
+        return en
+    return f"{zh} / {en}"
+
+
 def _slider(default: float, minimum: float, maximum: float, step: float = 1.0) -> Tuple[str, Dict[str, Any]]:
     return ("FLOAT", {"default": default, "min": minimum, "max": maximum, "step": step, "display": "slider"})
 
@@ -54,7 +67,7 @@ class SkinBeautySettingsCN:
     RETURN_NAMES = ("美白参数", "参数摘要")
     FUNCTION = "make_config"
     CATEGORY = "图像/人物美颜·中文"
-    DESCRIPTION = "共享人物肤色美白参数。低/中/高档可一键套用，随后可继续微调。"
+    DESCRIPTION = "Shared skin-tone correction settings with presets and fine controls."
 
     def make_config(
         self,
@@ -117,11 +130,26 @@ def _select_device(mode: str, image: torch.Tensor) -> torch.device:
     return torch.device("cpu")
 
 
-def _semantic_for(images: torch.Tensor, mode: str) -> Tuple[Optional[torch.Tensor], str]:
+def _semantic_for(
+    images: torch.Tensor,
+    mode: str,
+    locale: Optional[str] = None,
+) -> Tuple[Optional[torch.Tensor], str]:
     if mode == "纯算法：零依赖":
-        return None, "轻量 YCbCr 自适应肤色蒙版"
+        return None, _message(
+            "纯算法 YCbCr 自适应肤色蒙版",
+            "Pure-algorithm adaptive YCbCr skin mask",
+            locale,
+        )
+    # Keep the V2.2 enum value stable.  Official nodeDefs translations expose
+    # the clearer "model download only; never installs packages" label.
     allow_download = mode == "MediaPipe：允许首次下载"
-    return segment_skin(images.detach().cpu(), _models_dir(), allow_download=allow_download)
+    return segment_skin(
+        images.detach().cpu(),
+        _models_dir(),
+        allow_download=allow_download,
+        locale=locale,
+    )
 
 
 def _resize_display_preview(image: torch.Tensor, longest: int = 1600) -> torch.Tensor:
@@ -184,7 +212,7 @@ class SkinBeautyProcessorCN:
     RETURN_NAMES = ("美白图像", "肤色蒙版", "预览图", "处理报告")
     FUNCTION = "process"
     CATEGORY = "图像/人物美颜·中文"
-    DESCRIPTION = "只调整识别到的人物皮肤；支持 IMAGE 批次、外部遮罩和独立预览。"
+    DESCRIPTION = "Adjusts detected skin while preserving full-resolution IMAGE batches and optional masks."
 
     def process(
         self,
@@ -201,16 +229,25 @@ class SkinBeautyProcessorCN:
     ):
         config = resolve_config(美白参数)
         if 蒙版模式 in ("仅外部遮罩", "全图调色") or (蒙版模式 == "外部遮罩优先" and 外部遮罩 is not None):
-            semantic, semantic_report = None, "当前蒙版模式不需要语义模型"
+            semantic, semantic_report = None, _message(
+                "当前蒙版模式不需要语义模型",
+                "The selected mask mode does not require a semantic model",
+            )
         else:
             semantic, semantic_report = _semantic_for(图像, 语义蒙版)
         preferred_device = _select_device(计算设备, 图像)
         preferred_sequential = 批处理 != "整批并行"
         attempts = [(preferred_device, preferred_sequential, "")]
         if preferred_device.type == "cuda" and not preferred_sequential:
-            attempts.append((preferred_device, True, "整批显存不足，已自动改为逐张处理"))
+            attempts.append((preferred_device, True, _message(
+                "整批显存不足，已自动改为逐张处理",
+                "Batch GPU memory was insufficient; switched to sequential processing",
+            )))
         if preferred_device.type == "cuda" and 计算设备 == "自动":
-            attempts.append((torch.device("cpu"), True, "GPU 显存不足，已自动回退 CPU 逐张处理"))
+            attempts.append((torch.device("cpu"), True, _message(
+                "GPU 显存不足，已自动回退 CPU 逐张处理",
+                "GPU memory was insufficient; fell back to sequential CPU processing",
+            )))
 
         last_oom_text = ""
         result = mask = None
@@ -245,8 +282,9 @@ class SkinBeautyProcessorCN:
                     pass
         if result is None or mask is None:
             raise RuntimeError(
-                "人物肤色美白处理显存不足；请使用“逐张处理”、缩小参考图，或将计算设备改为 CPU。"
-                f"底层信息：{last_oom_text}"
+                "人物肤色美白显存不足；请使用逐张处理、缩小参考图或改用 CPU。 / "
+                "Skin-beauty processing ran out of memory; use sequential mode, a smaller image, or CPU. "
+                f"底层信息 / Details: {last_oom_text}"
             )
         result = result.detach().cpu()
         mask = mask.detach().cpu()
@@ -254,13 +292,21 @@ class SkinBeautyProcessorCN:
         # Only the temporary UI PNG is resized by _save_temp_preview().
         preview = result
 
-        report = (
-            f"{config_summary(config)}\n"
+        report_zh = (
+            f"{config_summary(config, 'zh')}\n"
             f"蒙版：{semantic_report}｜模式：{蒙版模式}\n"
             f"批次：{result.shape[0]} 张，{result.shape[2]}×{result.shape[1]}｜"
             f"处理：{'逐张省显存' if sequential else '整批并行'}｜设备：{device}"
             f"{('｜' + fallback_report) if fallback_report else ''}"
         )
+        report_en = (
+            f"{config_summary(config, 'en')}\n"
+            f"Mask: {semantic_report} | internal mode: {蒙版模式}\n"
+            f"Batch: {result.shape[0]} image(s), {result.shape[2]}×{result.shape[1]} | "
+            f"processing: {'sequential' if sequential else 'parallel batch'} | device: {device}"
+            f"{(' | ' + fallback_report) if fallback_report else ''}"
+        )
+        report = f"{report_zh}\n{report_en}"
         output = (result, mask, preview, report)
         if 生成节点预览:
             # Use a private UI key so ComfyUI does not append its standard image
@@ -275,15 +321,18 @@ def _resolve_input_image(source: Dict[str, Any]) -> str:
     import folder_paths
 
     if source.get("type", "input") not in ("input", "upload"):
-        raise ValueError("精确预览只读取 ComfyUI input 目录中的上传图")
+        raise ValueError(
+            "精确预览只读取 ComfyUI input 目录中的上传图 / "
+            "Exact preview only reads uploaded images from the ComfyUI input directory"
+        )
     filename = os.path.basename(str(source.get("filename", "")))
     subfolder = str(source.get("subfolder", "")).replace("\\", "/").strip("/")
     if not filename:
-        raise ValueError("没有找到上游 LoadImage 文件名")
+        raise ValueError("没有找到上游 LoadImage 文件名 / No upstream LoadImage filename was found")
     root = os.path.realpath(folder_paths.get_input_directory())
     candidate = os.path.realpath(os.path.join(root, subfolder, filename))
     if os.path.commonpath((root, candidate)) != root or not os.path.isfile(candidate):
-        raise ValueError("预览源图不存在或路径无效")
+        raise ValueError("预览源图不存在或路径无效 / Preview source is missing or outside the allowed path")
     return candidate
 
 
@@ -302,11 +351,13 @@ def _register_preview_route() -> None:
 
     @prompt_server.routes.post("/skin_beauty_cn/preview")
     async def preview(request):
+        locale = "en"
         try:
             from PIL import Image, ImageOps
             import numpy as np
 
             payload = await request.json()
+            locale = _normalize_locale(payload.get("locale"))
             source_path = _resolve_input_image(payload.get("source") or {})
             with Image.open(source_path) as opened:
                 pil_image = ImageOps.exif_transpose(opened).convert("RGB")
@@ -317,7 +368,7 @@ def _register_preview_route() -> None:
             images = torch.from_numpy(array).unsqueeze(0)
             config = resolve_config(payload.get("config") or {})
             semantic_mode = str(payload.get("semantic_mode", SEMANTIC_MODES[0]))
-            semantic, semantic_report = _semantic_for(images, semantic_mode)
+            semantic, semantic_report = _semantic_for(images, semantic_mode, locale)
             device = _select_device(str(payload.get("device", "自动")), images)
             result, _ = process_images(
                 images.to(device),
@@ -328,10 +379,19 @@ def _register_preview_route() -> None:
             )
             image_info = _save_temp_preview(result.cpu(), payload.get("node_id", "exact"))
             return web.json_response(
-                {"ok": True, "image": image_info, "report": f"{config_summary(config)}｜{semantic_report}"}
+                {
+                    "ok": True,
+                    "image": image_info,
+                    "report": f"{config_summary(config, locale)} | {semantic_report}",
+                }
             )
         except Exception as exc:
-            return web.json_response({"ok": False, "error": str(exc)}, status=400)
+            error = _message(
+                f"精确预览失败（{exc.__class__.__name__}）",
+                f"Exact preview failed ({exc.__class__.__name__})",
+                locale,
+            )
+            return web.json_response({"ok": False, "error": error}, status=400)
 
     prompt_server._skinbeauty_cn_route = True
 
@@ -345,6 +405,6 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SkinBeautySettingsCN": "人物肤色美白｜参数面板（中文）",
-    "SkinBeautyProcessorCN": "人物肤色美白｜处理＋预览（中文）",
+    "SkinBeautySettingsCN": "Skin Beauty | Settings",
+    "SkinBeautyProcessorCN": "Skin Beauty | Process + Preview",
 }

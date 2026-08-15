@@ -1,0 +1,22 @@
+{
+  "skinBeautyCN": {
+    "waiting": "等待参考图…",
+    "connectSource": "请连接参考图和参数面板",
+    "compareHint": "连接参考图后显示美白前后对比",
+    "before": "原图",
+    "after": "结果",
+    "refreshExact": "刷新精确预览（不跑视频）",
+    "exactProcessing": "精确预览处理中…",
+    "exactComplete": "精确预览完成",
+    "exactFailed": "精确预览失败",
+    "parametersUpdated": "参数已更新，等待精确预览…",
+    "clickPreview": "参数已更新，点击精确预览",
+    "modeUpdated": "模式已更新，点击精确预览",
+    "nodeComplete": "节点处理完成",
+    "imageLoadFailed": "参考图加载失败",
+    "resultLoadFailed": "节点结果预览加载失败",
+    "modelReady": "MediaPipe 语义模型已就绪",
+    "modelFallback": "正在使用纯算法安全回退",
+    "modelDownloadOnly": "MediaPipe：仅允许下载模型，不安装Python包"
+  }
+}

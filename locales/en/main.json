@@ -1,0 +1,22 @@
+{
+  "skinBeautyCN": {
+    "waiting": "Waiting for a source image…",
+    "connectSource": "Connect a source image and settings node",
+    "compareHint": "Connect a source image to compare before and after",
+    "before": "Before",
+    "after": "After",
+    "refreshExact": "Refresh exact preview (no video run)",
+    "exactProcessing": "Processing exact preview…",
+    "exactComplete": "Exact preview ready",
+    "exactFailed": "Exact preview failed",
+    "parametersUpdated": "Parameters changed; waiting for exact preview…",
+    "clickPreview": "Parameters changed; click exact preview",
+    "modeUpdated": "Mode changed; click exact preview",
+    "nodeComplete": "Node processing complete",
+    "imageLoadFailed": "Reference image failed to load",
+    "resultLoadFailed": "Node result preview failed to load",
+    "modelReady": "MediaPipe semantic model ready",
+    "modelFallback": "Using the pure algorithm fallback",
+    "modelDownloadOnly": "MediaPipe: allow model download only; never installs Python packages"
+  }
+}
