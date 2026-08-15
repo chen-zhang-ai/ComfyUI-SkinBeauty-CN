@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible SkinBeauty-CN problem without private media or secrets
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Please remove personal images, tokens, usernames, and absolute local paths. Security issues belong in a private advisory."
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "2.2.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation method
+      options: [ComfyUI Manager or Registry, Git clone, Release ZIP]
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python, Torch, ComfyUI revision, GPU/CPU, and whether MediaPipe/model exists.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Steps and a sanitized minimal workflow.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed private media, secrets, account data, and absolute local paths.
+          required: true
+        - label: This is not a vulnerability report.
+          required: true

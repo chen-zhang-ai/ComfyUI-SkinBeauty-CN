@@ -7,4 +7,3 @@
 打开工作流后，在 `LoadImage` 中选择自己的图片。正式 `IMAGE` 输出始终保持原始宽高；节点内对比图只是显示用途。
 
 The two minimal workflows need only ComfyUI built-ins and this project. The MiniMax integration workflow preserves the V2.2 reference-image wiring but requires the third-party packs listed in `DEPENDENCIES.md`.
-
