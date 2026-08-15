@@ -4,7 +4,7 @@
 
 ## Optional MediaPipe integration
 
-项目可调用用户环境中已有的 [Google MediaPipe](https://github.com/google-ai-edge/mediapipe) Image Segmenter，并可在用户明确选择时下载公开的 Selfie Multiclass 模型。MediaPipe 项目使用 Apache-2.0；模型仍受提供方适用条款约束。本仓库不包含 MediaPipe 代码、wheel 或模型，也不代表 Google 背书。
+项目可调用用户环境中已有的 [Google MediaPipe](https://github.com/google-ai-edge/mediapipe) Image Segmenter，并可在用户明确选择时从 [Google 官方地址](https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/1/selfie_multiclass_256x256.tflite) 下载 `selfie_multiclass_256x256.tflite`（Selfie Multiclass）模型。分类含义与模型说明见 [Google Image Segmenter 文档](https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter)。MediaPipe 项目使用 Apache-2.0；模型仍受提供方适用条款约束。本仓库不包含 MediaPipe 代码、wheel 或 TFLite 模型，也不代表 Google 背书。
 
 ## Design references, not runtime dependencies
 
