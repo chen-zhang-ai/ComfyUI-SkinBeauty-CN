@@ -54,6 +54,12 @@ class CIContractTests(unittest.TestCase):
         self.assertIn("permissions:\n  contents: write", self.text("release.yml"))
         self.assertIn("permissions:\n  contents: read", self.text("publish_action.yml"))
 
+    def test_dependabot_updates_pinned_github_actions(self):
+        dependabot = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+        self.assertIn("version: 2", dependabot)
+        self.assertIn("package-ecosystem: github-actions", dependabot)
+        self.assertIn('directory: "/"', dependabot)
+
     def test_registry_publish_is_manual_version_locked_and_secret_scoped(self):
         publish = self.text("publish_action.yml")
         self.assertIn("workflow_dispatch:", publish)
