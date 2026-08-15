@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.2.1"
+VERSION = "2.2.2"
 
 
 class PackageContractTests(unittest.TestCase):
@@ -22,8 +22,12 @@ class PackageContractTests(unittest.TestCase):
         self.assertIn(f'__version__ = "{VERSION}"', init_text)
         self.assertRegex(project, rf'(?m)^version = "{re.escape(VERSION)}"$')
         self.assertRegex(project, r"(?m)^dependencies = \[\]$")
+        self.assertIn('authors = [{ name = "chen zhang" }]', project)
+        self.assertIn("https://github.com/chen-zhang-ai/ComfyUI-SkinBeauty-CN", project)
+        self.assertIn('[tool.comfy]\nPublisherId = "chen-zhang-ai"', project)
+        self.assertIn('DisplayName = "Skin Beauty CN｜人物肤色美白"', project)
         self.assertIn(f"## [{VERSION}]", changelog)
-        self.assertNotRegex(project, r"(?i)(replace[-_ ]?me|your[-_ ]?publisher|publisher.?id\s*=)")
+        self.assertNotRegex(project, r"(?i)(replace[-_ ]?me|your[-_ ]?publisher|todo.*publisher)")
 
     def test_no_manager_auto_install_entrypoints(self):
         for name in ("requirements.txt", "install.py", "uninstall.py"):
@@ -78,6 +82,19 @@ class PackageContractTests(unittest.TestCase):
             for name in names:
                 self.assertNotRegex(name, r"(?:^|/)(?:tests|tools|\.github|__pycache__|dist)(?:/|$)")
                 self.assertFalse(name.endswith((".pyc", ".zip", ".mp4")), name)
+
+    def test_release_scanner_recognizes_private_and_secret_material(self):
+        spec = importlib.util.spec_from_file_location("skinbeauty_build_release_scan", ROOT / "tools" / "build_release.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        for sample in (
+            "contact=person" + "@example.com",
+            "Authorization: " + "Bearer abcdefghijklmnopqrstuvwxyz",
+            "Cookie=" + "session" + "id=abcdefghijklmnopqrstuvwxyz",
+            "github_" + "pat_abcdefghijklmnopqrstuvwxyz123456",
+            "C:" + "\\Users\\Private\\image.png",
+        ):
+            self.assertTrue(module.contains_sensitive_text(sample), sample)
 
 
 if __name__ == "__main__":

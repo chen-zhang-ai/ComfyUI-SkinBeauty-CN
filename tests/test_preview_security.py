@@ -6,6 +6,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 try:
     import torch  # noqa: F401
@@ -26,54 +27,45 @@ def load_nodes():
 
 
 @unittest.skipIf(torch is None, "PyTorch is required to import the node module")
-class PreviewPathSecurityTests(unittest.TestCase):
+class PreviewFileSecurityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.nodes = load_nodes()
 
-    def test_accepts_existing_file_beneath_comfy_input_only(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "input"
-            path = root / "safe" / "photo.png"
-            path.parent.mkdir(parents=True)
-            path.write_bytes(b"test")
-            stub = types.SimpleNamespace(get_input_directory=lambda: str(root))
-            previous = sys.modules.get("folder_paths")
-            sys.modules["folder_paths"] = stub
-            try:
-                resolved = self.nodes._resolve_input_image(
-                    {"type": "input", "subfolder": "safe", "filename": "photo.png"}
-                )
-            finally:
-                if previous is None:
-                    sys.modules.pop("folder_paths", None)
-                else:
-                    sys.modules["folder_paths"] = previous
-            self.assertEqual(Path(resolved), path.resolve())
+    def test_old_file_reading_preview_route_is_removed(self):
+        source = (ROOT / "nodes.py").read_text(encoding="utf-8")
+        self.assertNotIn("_resolve_input_image", source)
+        self.assertNotIn("/skin_beauty_cn/preview", source)
 
-    def test_rejects_output_type_traversal_and_missing_files(self):
+    def test_preview_write_uses_atomic_replace_and_cleans_partial_file(self):
+        source = (ROOT / "nodes.py").read_text(encoding="utf-8")
+        self.assertIn("os.replace(temporary, target)", source)
+        self.assertIn("temporary.unlink(missing_ok=True)", source)
+        self.assertNotIn("extra_pnginfo", source)
+
+    def test_display_png_is_bounded_without_changing_source_tensor(self):
+        from PIL import Image
+        import torch
+
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "input"
-            root.mkdir()
-            outside = Path(directory) / "private.png"
-            outside.write_bytes(b"private")
-            stub = types.SimpleNamespace(get_input_directory=lambda: str(root))
+            stub = types.SimpleNamespace(get_temp_directory=lambda: directory)
             previous = sys.modules.get("folder_paths")
             sys.modules["folder_paths"] = stub
+            source = torch.rand(1, 100, 1700, 4)
+            original_shape = tuple(source.shape)
             try:
-                with self.assertRaisesRegex(ValueError, "input directory"):
-                    self.nodes._resolve_input_image({"type": "output", "filename": "private.png"})
-                with self.assertRaisesRegex(ValueError, "outside the allowed path"):
-                    self.nodes._resolve_input_image(
-                        {"type": "input", "subfolder": "..", "filename": "private.png"}
-                    )
-                with self.assertRaisesRegex(ValueError, "missing"):
-                    self.nodes._resolve_input_image({"type": "input", "filename": "missing.png"})
+                info = self.nodes._save_temp_preview(source, "shape-test")
             finally:
                 if previous is None:
                     sys.modules.pop("folder_paths", None)
                 else:
                     sys.modules["folder_paths"] = previous
+            target = Path(directory) / info["subfolder"] / info["filename"]
+            with Image.open(target) as image:
+                self.assertLessEqual(max(image.size), 1600)
+                self.assertEqual(image.mode, "RGB")
+            self.assertEqual(tuple(source.shape), original_shape)
+            self.assertEqual(list(target.parent.glob("*.tmp")), [])
 
 
 if __name__ == "__main__":

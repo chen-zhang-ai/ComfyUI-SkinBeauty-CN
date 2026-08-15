@@ -1,8 +1,17 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { LatestOnlyGate, buildExactPreviewPrompt } from "./exact_preview_prompt.js";
 
 const SETTINGS_CLASS = "SkinBeautySettingsCN";
 const PROCESSOR_CLASS = "SkinBeautyProcessorCN";
+const PREVIEW_SINK_CLASS = "SkinBeautyPreviewSinkCN";
+const exactRequests = new Map();
+// Some third-party on-prompt hooks require the canonical workflow keys even
+// when a partial execution intentionally omits all user workflow metadata.
+// Return a fresh mutable object because those hooks may append transient maps.
+function emptyPreviewWorkflow() {
+  return { nodes: [], links: [] };
+}
 
 const TEXT = {
   en: {
@@ -11,9 +20,10 @@ const TEXT = {
     compareHint: "Connect a source image to compare before and after",
     before: "Before",
     after: "After",
-    refreshExact: "Refresh exact preview (no video run)",
+    refreshExact: "Original-resolution exact preview (no video run)",
     exactProcessing: "Processing exact preview…",
-    exactComplete: "Exact preview ready",
+    exactComplete: "Exact preview ready (same source as final processing)",
+    displayOnly: "Display scaling only; final IMAGE is unchanged",
     exactFailed: "Exact preview failed",
     parametersUpdated: "Parameters changed; waiting for exact preview…",
     clickPreview: "Parameters changed; click exact preview",
@@ -31,9 +41,10 @@ const TEXT = {
     compareHint: "连接参考图后显示美白前后对比",
     before: "原图",
     after: "结果",
-    refreshExact: "刷新精确预览（不跑视频）",
+    refreshExact: "原分辨率精确预览（不跑视频）",
     exactProcessing: "精确预览处理中…",
-    exactComplete: "精确预览完成",
+    exactComplete: "精确预览完成（与正式处理同源）",
+    displayOnly: "仅显示缩放，不影响正式输出",
     exactFailed: "精确预览失败",
     parametersUpdated: "参数已更新，等待精确预览…",
     clickPreview: "参数已更新，点击精确预览",
@@ -95,22 +106,6 @@ const SLIDER_NAMES = [
   "高光保护", "饱和度", "平滑", "纹理保留", "肤色识别", "蒙版羽化",
 ];
 
-const CONFIG_KEYS = {
-  "预设": "preset",
-  "总强度": "intensity",
-  "美白": "whitening",
-  "冷暖": "coolness",
-  "红润": "rosy",
-  "匀肤": "evenness",
-  "暗部提亮": "shadow_lift",
-  "高光保护": "highlight_protect",
-  "饱和度": "saturation",
-  "平滑": "smoothing",
-  "纹理保留": "texture_preserve",
-  "肤色识别": "mask_sensitivity",
-  "蒙版羽化": "mask_feather",
-};
-
 function widget(node, name) {
   return node?.widgets?.find((item) => item.name === name);
 }
@@ -120,28 +115,6 @@ function linkedInputNode(node, slot) {
   if (linkId == null) return null;
   const link = app.graph?.links?.[linkId];
   return link ? app.graph.getNodeById(link.origin_id) : null;
-}
-
-function findSourceNode(node, depth = 0) {
-  if (!node || depth > 8) return null;
-  if (node.comfyClass === "LoadImage" || node.type === "LoadImage") return node;
-  const upstream = linkedInputNode(node, 0);
-  return upstream ? findSourceNode(upstream, depth + 1) : null;
-}
-
-function sourceDescriptor(processor) {
-  const source = findSourceNode(processor);
-  const imageWidget = source && (widget(source, "image") || source.widgets?.[0]);
-  let value = imageWidget?.value;
-  if (value && typeof value === "object") value = value.filename || value.name;
-  if (!value) return null;
-  const clean = String(value).replace(/\\/g, "/").replace(/\s+\[(?:input|output|temp)\]$/, "");
-  const slash = clean.lastIndexOf("/");
-  return {
-    filename: slash >= 0 ? clean.slice(slash + 1) : clean,
-    subfolder: slash >= 0 ? clean.slice(0, slash) : "",
-    type: "input",
-  };
 }
 
 function viewUrl(info) {
@@ -157,19 +130,6 @@ function viewUrl(info) {
 function linkedSettings(processor) {
   const candidate = linkedInputNode(processor, 1);
   return candidate?.comfyClass === SETTINGS_CLASS || candidate?.type === SETTINGS_CLASS ? candidate : null;
-}
-
-function collectConfig(settings) {
-  const config = {};
-  for (const [label, key] of Object.entries(CONFIG_KEYS)) {
-    const item = widget(settings, label);
-    if (item) config[key] = item.value;
-  }
-  return config;
-}
-
-function collectProcessorMode(node, name, fallback) {
-  return widget(node, name)?.value ?? fallback;
 }
 
 function loadImage(url) {
@@ -188,24 +148,6 @@ function displayCanvas(image, longest = 1600) {
   canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
   canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
   return canvas;
-}
-
-function descriptorKey(descriptor) {
-  return `${descriptor.type || "input"}\u0000${descriptor.subfolder || ""}\u0000${descriptor.filename}`;
-}
-
-async function ensureOriginal(node, descriptor) {
-  const state = node._skinBeautyState;
-  const key = descriptorKey(descriptor);
-  if (state.before && state.sourceKey === key) return true;
-  const token = ++state.originalToken;
-  const image = await loadImage(viewUrl(descriptor));
-  if (token !== state.originalToken) return false;
-  state.before = displayCanvas(image);
-  state.sourceKey = key;
-  state.exact = null;
-  node.setDirtyCanvas(true, true);
-  return true;
 }
 
 function roundedPath(ctx, x, y, width, height, radius) {
@@ -380,7 +322,7 @@ function updateCompareFromNodePosition(node, pos) {
   const state = node?._skinBeautyState;
   if (!state) return false;
   const bounds = state?.imageBounds;
-  const active = Boolean(state?.before && state?.exact && inside(bounds, pos));
+  const active = Boolean(state?.before && state?.exact && (inside(bounds, pos) || state.compareDragging));
   state.compareHover = active;
   if (active) {
     state.split = Math.max(0.005, Math.min(0.995, (pos[0] - bounds.x) / bounds.width));
@@ -388,6 +330,24 @@ function updateCompareFromNodePosition(node, pos) {
   if (app.canvas?.canvas) app.canvas.canvas.style.cursor = active ? "col-resize" : "";
   node?.setDirtyCanvas(true, true);
   return active;
+}
+
+function beginCompareFromNodePosition(node, pos) {
+  const state = node?._skinBeautyState;
+  if (!state?.before || !state?.exact || !inside(state.imageBounds, pos)) return false;
+  state.compareDragging = true;
+  updateCompareFromNodePosition(node, pos);
+  return true;
+}
+
+function endCompareFromNodePosition(node, pos) {
+  const state = node?._skinBeautyState;
+  if (!state?.compareDragging) return false;
+  updateCompareFromNodePosition(node, pos);
+  state.compareDragging = false;
+  state.compareHover = inside(state.imageBounds, pos);
+  node.setDirtyCanvas(true, true);
+  return true;
 }
 
 async function runAction(node, key, action) {
@@ -488,62 +448,139 @@ function actionButton(key, labelKey, busyLabelKey, action) {
   };
 }
 
-async function refreshExact(node) {
-  const descriptor = sourceDescriptor(node);
-  const settings = linkedSettings(node);
-  const state = node._skinBeautyState;
-  if (!descriptor || !settings) {
-    state.status = "";
-    state.statusKey = "connectSource";
-    state.error = true;
-    node.setDirtyCanvas(true, true);
-    return false;
+function safeNodeId(value) {
+  return String(value).replace(/[^0-9A-Za-z_-]+/g, "_").slice(0, 48) || "node";
+}
+
+function exactRequestPromise(targetId, node) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      exactRequests.delete(targetId);
+      reject(new Error("Exact preview timed out"));
+    }, 10 * 60 * 1000);
+    exactRequests.set(targetId, { node, promptId: null, resolve, reject, timeout });
+  });
+}
+
+function finishExactRequest(targetId, callback) {
+  const pending = exactRequests.get(String(targetId));
+  if (!pending) return false;
+  exactRequests.delete(String(targetId));
+  clearTimeout(pending.timeout);
+  callback(pending);
+  return true;
+}
+
+function onExactExecuted(event) {
+  const detail = event?.detail || {};
+  finishExactRequest(detail.node, (pending) => pending.resolve(detail.output || {}));
+}
+
+function onExactExecutionFailed(event) {
+  const detail = event?.detail || {};
+  for (const [targetId, pending] of exactRequests) {
+    if (pending.promptId && pending.promptId === detail.prompt_id) {
+      // Server exception text can contain implementation details or local
+      // paths. Keep the browser-facing failure intentionally generic.
+      finishExactRequest(targetId, (entry) => entry.reject(new Error(text("exactFailed"))));
+    }
   }
-  const token = ++state.exactToken;
+}
+
+function cancelExactRequests(node) {
+  for (const [targetId, pending] of exactRequests) {
+    if (pending.node === node) {
+      finishExactRequest(targetId, (entry) => entry.reject(new Error("Exact preview node was removed")));
+    }
+  }
+}
+
+async function queueExactPrompt(node, token) {
+  const graphPrompt = await app.graphToPrompt();
+  const processorId = String(node.id);
+  const requestId = `${safeNodeId(node.id)}_${token}_${Date.now()}`;
+  const targetId = `skinbeauty_exact_${requestId}`;
+  // The builder clones only the processor and its IMAGE/settings/MASK
+  // ancestors, then injects one dev-only partial-execution output target.
+  const output = buildExactPreviewPrompt(
+    graphPrompt.output,
+    processorId,
+    targetId,
+    requestId,
+    PREVIEW_SINK_CLASS,
+  );
+
+  const resultPromise = exactRequestPromise(targetId, node);
+  try {
+    const queued = await api.queuePrompt(
+      0,
+      { output, workflow: emptyPreviewWorkflow() },
+      { partialExecutionTargets: [targetId] },
+    );
+    const pending = exactRequests.get(targetId);
+    if (pending) pending.promptId = queued.prompt_id;
+  } catch (error) {
+    finishExactRequest(targetId, (pending) => pending.reject(error));
+  }
+  return resultPromise;
+}
+
+async function applyPreviewPayload(node, payload, token, statusKey) {
+  const beforeInfo = payload?.skin_beauty_before?.[0];
+  const afterInfo = payload?.skin_beauty_preview?.[0];
+  if (!beforeInfo || !afterInfo) throw new Error(text("resultLoadFailed"));
+  const [before, after] = await Promise.all([
+    loadImage(viewUrl(beforeInfo)),
+    loadImage(viewUrl(afterInfo)),
+  ]);
+  const state = node._skinBeautyState;
+  if (token != null && token !== state.exactToken) return false;
+  state.before = displayCanvas(before);
+  state.exact = displayCanvas(after);
+  state.status = statusKey === "exactComplete" ? `${text(statusKey)} · ${text("displayOnly")}` : "";
+  state.statusKey = statusKey;
+  state.statusDetail = text("displayOnly");
+  state.error = false;
+  node.setDirtyCanvas(true, true);
+  return true;
+}
+
+async function executeExactNow(node, token) {
+  const state = node._skinBeautyState;
+  if (token !== state.exactToken) return false;
+  state.exactInFlight = true;
   state.status = "";
   state.statusKey = "exactProcessing";
   state.error = false;
   node.setDirtyCanvas(true, true);
+  let ok = false;
   try {
-    const [originalReady, response] = await Promise.all([
-      ensureOriginal(node, descriptor),
-      api.fetchApi("/skin_beauty_cn/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source: descriptor,
-          config: collectConfig(settings),
-          mask_mode: collectProcessorMode(node, "蒙版模式", "自动肤色（推荐）"),
-          semantic_mode: collectProcessorMode(node, "语义蒙版", "自动：已有模型则使用"),
-          device: collectProcessorMode(node, "计算设备", "自动"),
-          node_id: node.id,
-          locale: currentLocale(),
-        }),
-      }),
-    ]);
-    const result = await response.json();
-    if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
-    if (!originalReady) return false;
-    const image = await loadImage(viewUrl(result.image));
-    if (token !== state.exactToken) return false;
-    const canvas = document.createElement("canvas");
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
-    canvas.getContext("2d").drawImage(image, 0, 0);
-    state.exact = canvas;
-    state.status = "";
-    state.statusKey = "exactComplete";
-    state.statusDetail = result.report || "";
+    const payload = await queueExactPrompt(node, token);
+    ok = await applyPreviewPayload(node, payload, token, "exactComplete");
   } catch (error) {
-    console.warn(`[SkinBeauty-CN] ${text("exactFailed")}`, error);
-    state.status = "";
-    state.statusKey = "exactFailed";
-    state.error = true;
-    node.setDirtyCanvas(true, true);
-    return false;
+    if (token === state.exactToken) {
+      console.warn(`[SkinBeauty-CN] ${text("exactFailed")}`, error);
+      state.status = "";
+      state.statusKey = "exactFailed";
+      state.error = true;
+      node.setDirtyCanvas(true, true);
+    }
+  } finally {
+    state.exactInFlight = false;
   }
-  node.setDirtyCanvas(true, true);
-  return true;
+  return ok;
+}
+
+async function executeExact(node, token) {
+  const state = node._skinBeautyState;
+  if (token !== state.exactToken) return false;
+  return state.exactGate.request(token, (latestToken) => executeExactNow(node, latestToken));
+}
+
+async function refreshExact(node) {
+  clearTimeout(node._skinBeautyExactTimer);
+  const token = ++node._skinBeautyState.exactToken;
+  return executeExact(node, token);
 }
 
 function scheduleExact(node, delay = 0) {
@@ -559,7 +596,7 @@ function scheduleExact(node, delay = 0) {
     node.setDirtyCanvas(true, true);
   }
   node._skinBeautyExactTimer = setTimeout(() => {
-    if (state.exactToken === scheduledToken) refreshExact(node);
+    if (state.exactToken === scheduledToken) executeExact(node, scheduledToken);
   }, delay);
 }
 
@@ -567,7 +604,7 @@ function refreshLinkedProcessors(settings) {
   for (const node of app.graph?._nodes || []) {
     if ((node.comfyClass === PROCESSOR_CLASS || node.type === PROCESSOR_CLASS) && linkedSettings(node)?.id === settings.id) {
       if (node._skinBeautyAutoExact) {
-        scheduleExact(node, 500);
+        scheduleExact(node, 650);
       } else {
         node._skinBeautyState.status = "";
         node._skinBeautyState.statusKey = "clickPreview";
@@ -622,9 +659,9 @@ function installProcessor(node) {
     status: "",
     statusKey: "waiting",
     statusDetail: "",
-    originalToken: 0,
     exactToken: 0,
-    sourceKey: "",
+    exactInFlight: false,
+    exactGate: new LatestOnlyGate(),
     error: false,
     split: 0.5,
     compareHover: false,
@@ -656,13 +693,13 @@ function installProcessor(node) {
       if (node._skinBeautyAutoExact) scheduleExact(node, 0);
     };
   }
-  for (const name of ["蒙版模式", "语义蒙版", "计算设备"]) {
+  for (const name of ["蒙版模式", "语义蒙版", "批处理", "计算设备"]) {
     const modeWidget = widget(node, name);
     if (!modeWidget) continue;
     const originalMode = modeWidget.callback;
     modeWidget.callback = function (value, ...args) {
       originalMode?.call(this, value, ...args);
-      if (node._skinBeautyAutoExact) scheduleExact(node, 350);
+      if (node._skinBeautyAutoExact) scheduleExact(node, 650);
       else {
         node._skinBeautyState.status = "";
         node._skinBeautyState.statusKey = "modeUpdated";
@@ -675,19 +712,24 @@ function installProcessor(node) {
     originalConnectionsChange?.apply(this, args);
     this._skinBeautyState.before = null;
     this._skinBeautyState.exact = null;
-    this._skinBeautyState.sourceKey = "";
-    if (this._skinBeautyAutoExact) scheduleExact(this, 350);
-    else {
-      const descriptor = sourceDescriptor(this);
-      if (descriptor) ensureOriginal(this, descriptor).catch(() => {});
-    }
+    if (this._skinBeautyAutoExact) scheduleExact(this, 650);
   };
   // Current ComfyUI does not continuously forward hover movement to a custom
   // widget's mouse() callback. rgthree tracks it at node level, so do the same.
+  const originalMouseDown = node.onMouseDown;
+  node.onMouseDown = function (event, pos, canvas) {
+    if (beginCompareFromNodePosition(this, pos)) return true;
+    return originalMouseDown?.call(this, event, pos, canvas);
+  };
   const originalMouseMove = node.onMouseMove;
   node.onMouseMove = function (event, pos, canvas) {
     originalMouseMove?.call(this, event, pos, canvas);
     updateCompareFromNodePosition(this, pos);
+  };
+  const originalMouseUp = node.onMouseUp;
+  node.onMouseUp = function (event, pos, canvas) {
+    if (endCompareFromNodePosition(this, pos)) return true;
+    return originalMouseUp?.call(this, event, pos, canvas);
   };
   const originalMouseLeave = node.onMouseLeave;
   node.onMouseLeave = function (event) {
@@ -702,31 +744,17 @@ function installProcessor(node) {
     originalExecuted?.call(this, message);
     this.imgs = [];
     this.preview = null;
-    const info = message?.skin_beauty_preview?.[0];
-    if (!info) return;
-    loadImage(viewUrl(info)).then((image) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = image.naturalWidth;
-      canvas.height = image.naturalHeight;
-      canvas.getContext("2d").drawImage(image, 0, 0);
-      this._skinBeautyState.exact = canvas;
-      this._skinBeautyState.status = "";
-      this._skinBeautyState.statusKey = "nodeComplete";
-      this._skinBeautyState.error = false;
-      this.setDirtyCanvas(true, true);
-    }).catch((error) => console.warn(`[SkinBeauty-CN] ${text("resultLoadFailed")}`, error));
+    applyPreviewPayload(this, message, null, "nodeComplete")
+      .catch((error) => console.warn(`[SkinBeauty-CN] ${text("resultLoadFailed")}`, error));
   };
   const originalRemoved = node.onRemoved;
   node.onRemoved = function (...args) {
     clearTimeout(this._skinBeautyExactTimer);
+    cancelExactRequests(this);
     originalRemoved?.apply(this, args);
   };
   setTimeout(() => {
     if (node._skinBeautyAutoExact) scheduleExact(node, 0);
-    else {
-      const descriptor = sourceDescriptor(node);
-      if (descriptor) ensureOriginal(node, descriptor).catch(() => {});
-    }
   }, 450);
   node.setSize([Math.max(node.size[0], 520), Math.max(node.size[1], 900)]);
 }
@@ -735,6 +763,9 @@ app.registerExtension({
   name: "ComfyUI.SkinBeautyCN",
   async setup() {
     app.ui?.settings?.addEventListener?.("Comfy.Locale.change", refreshLocaleText);
+    api.addEventListener("executed", onExactExecuted);
+    api.addEventListener("execution_error", onExactExecutionFailed);
+    api.addEventListener("execution_interrupted", onExactExecutionFailed);
   },
   async nodeCreated(node) {
     if (node.comfyClass === SETTINGS_CLASS) installSettings(node);

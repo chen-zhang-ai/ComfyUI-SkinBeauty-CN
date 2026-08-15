@@ -13,7 +13,7 @@ The fallback mask is deliberately probabilistic, not a claim of semantic underst
 
 ## Independently implemented scope
 
-This project independently implements the PyTorch tensor pipeline, preset/config model, mask fusion, sequential/parallel batching, device and OOM fallback, fixed-model download hardening, safe preview endpoint, exact-preview protocol, bilingual integration, workflow preservation tests, and native Canvas comparer. “Independent” describes this repository's code and engineering combination; it does not claim invention of the underlying scientific concepts.
+This project independently implements the PyTorch tensor pipeline, preset/config model, mask fusion, sequential/parallel batching, device and OOM fallback, fixed-model download hardening, partial-execution exact-preview protocol, bilingual integration, workflow preservation tests, and native Canvas comparer. “Independent” describes this repository's code and engineering combination; it does not claim invention of the underlying scientific concepts.
 
 ## Public and third-party foundations
 
