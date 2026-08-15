@@ -1,3 +1,6 @@
-# Optional only. Do not install this into a shared ComfyUI environment unless
-# you have reviewed its NumPy/protobuf constraints and can restore that environment.
+# Optional dependency; never installed automatically by this project.
+# MediaPipe 0.10.21 is the only version currently verified end-to-end.
+# It is a tested recommendation, not a minimum imposed by the TFLite model.
+# Other versions may work but remain unverified.
+# Review NumPy, protobuf, OpenCV, JAX, and other dependency changes before installing.
 mediapipe==0.10.21

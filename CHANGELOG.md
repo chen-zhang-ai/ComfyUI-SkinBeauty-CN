@@ -2,6 +2,15 @@
 
 All notable changes are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Documentation
+
+- Added a MediaPipe environment and version compatibility table that separates verified, CI/mocked, candidate-only, and unverified evidence.
+- Documented optional dependency risks, read-only environment checks, and manual model placement with the official URL, size, and SHA256.
+- Expanded practical placement examples for reference-video preprocessing, final image grading, masks, multiple references, and decoded video-frame batches.
+- Removed the personal MiniMax integration workflow link from the project homepage while keeping the workflow file and its dependency documentation unchanged.
+
 ## [2.2.2] - 2026-08-15
 
 ### Fixed
