@@ -1,11 +1,11 @@
 [project]
 name = "skin-beauty-cn"
-version = "2.2.1"
+version = "2.2.2"
 description = "Dependency-free ComfyUI skin-tone correction nodes with bilingual UI and optional MediaPipe masks"
 readme = "README_EN.md"
 requires-python = ">=3.10,<3.13"
 license = { file = "LICENSE" }
-authors = [{ name = "ComfyUI-SkinBeauty-CN contributors" }]
+authors = [{ name = "chen zhang" }]
 dependencies = []
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -17,9 +17,10 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/likun199679-bot/ComfyUI-SkinBeauty-CN"
-Documentation = "https://github.com/likun199679-bot/ComfyUI-SkinBeauty-CN#readme"
-"Bug Tracker" = "https://github.com/likun199679-bot/ComfyUI-SkinBeauty-CN/issues"
+Repository = "https://github.com/chen-zhang-ai/ComfyUI-SkinBeauty-CN"
+Documentation = "https://github.com/chen-zhang-ai/ComfyUI-SkinBeauty-CN#readme"
+"Bug Tracker" = "https://github.com/chen-zhang-ai/ComfyUI-SkinBeauty-CN/issues"
 
-# [tool.comfy] is intentionally absent until the owner supplies the immutable
-# Registry PublisherId. A GitHub login is not a valid substitute.
+[tool.comfy]
+PublisherId = "chen-zhang-ai"
+DisplayName = "Skin Beauty CN｜人物肤色美白"

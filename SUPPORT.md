@@ -1,7 +1,7 @@
 # Support / 支持
 
 - 安装、节点缺失、回退、OOM 和已知限制：先看中英文 README 的故障排查。
-- 可复现缺陷：提交 [Bug report](https://github.com/likun199679-bot/ComfyUI-SkinBeauty-CN/issues/new?template=bug_report.yml)，附去隐私的日志、版本和最小工作流。
+- 可复现缺陷：提交 [Bug report](https://github.com/chen-zhang-ai/ComfyUI-SkinBeauty-CN/issues/new?template=bug_report.yml)，附去隐私的日志、版本和最小工作流。
 - 功能建议：使用 Feature request 模板。
 - 安全问题：按 `SECURITY.md` 私下报告。
 

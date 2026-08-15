@@ -2,6 +2,25 @@
 
 All notable changes are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## [2.2.2] - 2026-08-15
+
+### Fixed
+
+- Replaced the standalone `LoadImage` HTTP preview with ComfyUI's official partial-execution protocol and a dev-only ephemeral output target.
+- Exact preview now executes the production processor at source resolution with the same IMAGE, settings, external MASK, semantic mode, batch mode, device selection, and OOM fallback.
+- Display PNG encoding happens only after the full-resolution tensor result and uses atomic replacement; downstream IMAGE outputs remain unchanged.
+
+### Security and release engineering
+
+- Migrated the public repository to the `chen-zhang-ai` organization without rewriting the v2.2.1 history.
+- Added latest-only single-flight preview scheduling, ancestor-only prompt construction, and stale-result rejection so video/save nodes are excluded.
+- Pinned GitHub Actions to audited full commit SHAs and made GitHub Release and Registry publishing depend on the complete reusable Quality Gate.
+- Expanded resolution, external-mask, partial-graph, concurrency, privacy, packaging, and CI contract tests.
+
+### Compatibility
+
+- Public node class IDs, Python input keys, stored enum values, output order, V1/V2.2 workflow routing, and full-resolution IMAGE behavior remain compatible.
+
 ## [2.2.1] - 2026-08-15
 
 ### Added
@@ -25,4 +44,5 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 - Initial V2.2 baseline with shared settings, skin processing, exact preview, Canvas comparison, optional MediaPipe integration, and MiniMax workflow wiring.
 
-[2.2.1]: https://github.com/likun199679-bot/ComfyUI-SkinBeauty-CN/releases/tag/v2.2.1
+[2.2.2]: https://github.com/chen-zhang-ai/ComfyUI-SkinBeauty-CN/releases/tag/v2.2.2
+[2.2.1]: https://github.com/chen-zhang-ai/ComfyUI-SkinBeauty-CN/releases/tag/v2.2.1

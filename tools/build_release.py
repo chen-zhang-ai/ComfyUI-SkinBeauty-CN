@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+import struct
 import tempfile
 import zipfile
 from pathlib import Path
@@ -18,7 +19,7 @@ ROOT_FILES = {
     "__init__.py", "nodes.py", "semantic_mediapipe.py", "skin_core.py", "pyproject.toml",
     "README.md", "README_EN.md", "LICENSE", "CHANGELOG.md", "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md", "SECURITY.md", "SUPPORT.md", "THIRD_PARTY_NOTICES.md",
-    "OPEN_SOURCE_RESEARCH.md", "RELEASE_NOTES_v2.2.1.md", "AGENTS.md",
+    "OPEN_SOURCE_RESEARCH.md", "RELEASE_NOTES_v2.2.2.md", "AGENTS.md",
 }
 INCLUDED_DIRS = {"web", "locales", "workflows", "extras", "docs"}
 EXCLUDED_PARTS = {"__pycache__", ".pytest_cache", ".git", ".github", "tests", "tools", "dist", "release"}
@@ -26,6 +27,36 @@ EXCLUDED_SUFFIXES = {".pyc", ".pyo", ".log", ".zip", ".mp4"}
 WINDOWS_ABSOLUTE = re.compile(r"(?i)(?<![a-z])[a-z]:[\\/](?![\\/])")
 UNIX_HOME = re.compile(r"(?:^|[\s\"'])/(?:home|Users)/")
 SECRET = re.compile(r"(?i)(github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)")
+EMAIL = re.compile(r"(?i)(?<![A-Z0-9._%+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![A-Z0-9._%+-])")
+SESSION_SECRET = re.compile(r"(?i)(?:authorization\s*[:=]\s*(?:bearer\s+)?|cookie\s*[:=]\s*|sessionid\s*[:=]\s*)[^\s\"']{12,}")
+FORBIDDEN_PNG_CHUNKS = {b"tEXt", b"zTXt", b"iTXt", b"eXIf", b"tIME"}
+
+
+def contains_sensitive_text(text: str) -> bool:
+    return bool(
+        WINDOWS_ABSOLUTE.search(text)
+        or UNIX_HOME.search(text)
+        or SECRET.search(text)
+        or EMAIL.search(text)
+        or SESSION_SECRET.search(text)
+    )
+
+
+def verify_png(path: Path) -> None:
+    raw = path.read_bytes()
+    if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError(f"invalid PNG signature: {path.relative_to(ROOT)}")
+    offset = 8
+    while offset < len(raw):
+        if offset + 12 > len(raw):
+            raise ValueError(f"truncated PNG: {path.relative_to(ROOT)}")
+        length = struct.unpack(">I", raw[offset : offset + 4])[0]
+        kind = raw[offset + 4 : offset + 8]
+        if kind in FORBIDDEN_PNG_CHUNKS:
+            raise ValueError(f"private PNG metadata chunk {kind!r}: {path.relative_to(ROOT)}")
+        offset += 12 + length
+    if offset != len(raw):
+        raise ValueError(f"invalid PNG chunk length: {path.relative_to(ROOT)}")
 
 
 def project_version() -> str:
@@ -67,12 +98,12 @@ def verify_sources(files: list[Path]) -> None:
         relative = path.relative_to(ROOT)
         if any(part in EXCLUDED_PARTS or part.startswith(".venv") for part in relative.parts):
             raise ValueError(f"excluded path selected: {relative}")
+        if path.suffix.lower() == ".png":
+            verify_png(path)
         if path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
             text = path.read_text(encoding="utf-8")
-            if WINDOWS_ABSOLUTE.search(text) or UNIX_HOME.search(text):
-                raise ValueError(f"absolute local path in release file: {relative}")
-            if SECRET.search(text):
-                raise ValueError(f"high-confidence secret in release file: {relative}")
+            if contains_sensitive_text(text):
+                raise ValueError(f"private path, email, session, or secret in release file: {relative}")
         if path.suffix.lower() == ".json":
             json.loads(path.read_text(encoding="utf-8"))
 

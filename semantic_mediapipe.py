@@ -116,7 +116,7 @@ def ensure_model(models_dir: str, allow_download: bool) -> Optional[str]:
             temporary.unlink(missing_ok=True)
             request = urllib.request.Request(
                 MODEL_URL,
-                headers={"User-Agent": "ComfyUI-SkinBeauty-CN/2.2.1"},
+                headers={"User-Agent": "ComfyUI-SkinBeauty-CN/2.2.2"},
             )
             total = 0
             digest = hashlib.sha256()

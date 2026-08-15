@@ -31,7 +31,7 @@ Get-FileHash .\ComfyUI-SkinBeauty-CN_v2.2.1.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
-已知限制包括米色背景/衣物误选、轻量语义模型漏选，以及精确预览源需能追溯到 `LoadImage`。请在 [Issues](https://github.com/likun199679-bot/ComfyUI-SkinBeauty-CN/issues) 报告普通问题。
+已知限制包括米色背景/衣物误选、轻量语义模型漏选，以及精确预览源需能追溯到 `LoadImage`。请在 [Issues](https://github.com/chen-zhang-ai/ComfyUI-SkinBeauty-CN/issues) 报告普通问题。
 
 ## English
 
@@ -64,4 +64,4 @@ sha256sum ComfyUI-SkinBeauty-CN_v2.2.1.zip
 cat SHA256SUMS.txt
 ```
 
-Known limitations include beige-object false positives, lightweight semantic-model misses, and the `LoadImage` trace requirement for standalone exact preview. Report ordinary problems through [Issues](https://github.com/likun199679-bot/ComfyUI-SkinBeauty-CN/issues).
+Known limitations include beige-object false positives, lightweight semantic-model misses, and the `LoadImage` trace requirement for standalone exact preview. Report ordinary problems through [Issues](https://github.com/chen-zhang-ai/ComfyUI-SkinBeauty-CN/issues).

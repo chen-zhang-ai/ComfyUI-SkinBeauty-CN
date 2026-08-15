@@ -4,30 +4,43 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type publish-v2.2.1 after GitHub Release and CI are verified
+        description: Type publish-v2.2.2 after GitHub Release and CI are verified
         required: true
 
 permissions:
   contents: read
 
 jobs:
+  quality:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/quality.yml
+
   publish-node:
+    needs: quality
     name: Publish immutable Registry version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, verified tag commit, resolved 2026-08-15
+        with:
+          fetch-depth: 0
       - name: Registry preflight
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          test "$CONFIRMATION" = "publish-v2.2.1"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$CONFIRMATION" = "publish-v2.2.2"
           grep -Eq '^name = "skin-beauty-cn"$' pyproject.toml
-          grep -Eq '^version = "2.2.1"$' pyproject.toml
-          grep -Eq '^PublisherId = "[^\"]+"$' pyproject.toml || {
-            echo "A real immutable [tool.comfy] PublisherId is required; GitHub login is not a substitute." >&2
-            exit 1
-          }
+          grep -Eq '^version = "2.2.2"$' pyproject.toml
+          grep -Eq '^dependencies = \[\]$' pyproject.toml
+          grep -Fqx 'PublisherId = "chen-zhang-ai"' pyproject.toml
+          grep -Fqx 'Repository = "https://github.com/chen-zhang-ai/ComfyUI-SkinBeauty-CN"' pyproject.toml
+          git fetch origin tag v2.2.2
+          test "$(git rev-parse HEAD)" = "$(git rev-parse 'v2.2.2^{}')"
+          test "$(gh release view v2.2.2 --json isDraft --jq .isDraft)" = false
+          test "$(gh release view v2.2.2 --json isPrerelease --jq .isPrerelease)" = false
       - name: Publish custom node
-        uses: Comfy-Org/publish-node-action@main
+        uses: Comfy-Org/publish-node-action@d2366e7abb6ab16f3bb03e3520ae25c8cf749bc9 # verified main commit 2025-05-10, resolved 2026-08-15
         with:
           personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}

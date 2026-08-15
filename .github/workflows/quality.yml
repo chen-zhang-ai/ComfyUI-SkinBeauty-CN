@@ -1,10 +1,11 @@
-name: Quality
+name: Quality Gate
 
 on:
   pull_request:
   push:
     branches: [main, "release/**"]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -23,8 +24,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python: ["3.10", "3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, verified tag commit, resolved 2026-08-15
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0, verified tag commit, resolved 2026-08-15
         with:
           python-version: ${{ matrix.python }}
       - name: Compile Python
@@ -33,11 +34,16 @@ jobs:
         shell: bash
         run: |
           python -m unittest discover -s tests -p 'test_frontend.py' -v
+          python -m unittest discover -s tests -p 'test_javascript_runtime.py' -v
           python -m unittest discover -s tests -p 'test_semantic_contract.py' -v
           python -m unittest discover -s tests -p 'test_workflow.py' -v
+          python -m unittest discover -s tests -p 'test_media_contract.py' -v
+          python -m unittest discover -s tests -p 'test_ci_contract.py' -v
           python -m unittest discover -s tests -p 'test_package_contract.py' -v
       - name: JavaScript syntax
-        run: node --check web/skin_beauty.js
+        run: |
+          node --check web/skin_beauty.js
+          node --check web/exact_preview_prompt.js
       - name: Release source verification
         run: python tools/build_release.py --verify-only
 
@@ -45,12 +51,14 @@ jobs:
     name: CPU Torch algorithm / Ubuntu / Python 3.12
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, verified tag commit, resolved 2026-08-15
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0, verified tag commit, resolved 2026-08-15
         with:
           python-version: "3.12"
-      - name: Install isolated CI CPU Torch
-        run: python -m pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install isolated CI test runtime
+        run: |
+          python -m pip install --disable-pip-version-check Pillow==11.3.0 numpy==1.26.4
+          python -m pip install --disable-pip-version-check torch==2.9.1 --index-url https://download.pytorch.org/whl/cpu
       - name: Run complete core suite
         run: python -m unittest discover -s tests -v
 
@@ -58,13 +66,13 @@ jobs:
     name: Optional MediaPipe adapter / isolated Ubuntu
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, verified tag commit, resolved 2026-08-15
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0, verified tag commit, resolved 2026-08-15
         with:
           python-version: "3.12"
       - name: Install isolated optional-test dependencies
         run: |
-          python -m pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install --disable-pip-version-check torch==2.9.1 --index-url https://download.pytorch.org/whl/cpu
           python -m pip install --disable-pip-version-check -r extras/requirements-mediapipe.txt
       - name: Run model safety and fallback tests
         run: python -m unittest discover -s tests -p 'test_mediapipe.py' -v
@@ -74,17 +82,41 @@ jobs:
     needs: [static-contracts, cpu-algorithm, optional-mediapipe]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, verified tag commit, resolved 2026-08-15
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0, verified tag commit, resolved 2026-08-15
         with:
           python-version: "3.12"
-      - run: python tools/build_release.py
+      - name: Build twice and compare byte-for-byte
+        run: |
+          python tools/build_release.py --output-dir dist-one
+          python tools/build_release.py --output-dir dist-two
+          cmp dist-one/ComfyUI-SkinBeauty-CN_v2.2.2.zip dist-two/ComfyUI-SkinBeauty-CN_v2.2.2.zip
+          cmp dist-one/SHA256SUMS.txt dist-two/SHA256SUMS.txt
+          cmp dist-one/RELEASE_REPORT_v2.2.2.md dist-two/RELEASE_REPORT_v2.2.2.md
       - name: Verify recorded SHA256
-        working-directory: dist
+        working-directory: dist-one
         run: sha256sum --check SHA256SUMS.txt
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1, verified tag commit, resolved 2026-08-15
         with:
-          name: ComfyUI-SkinBeauty-CN-v2.2.1
-          path: dist/*
+          name: ComfyUI-SkinBeauty-CN-v2.2.2
+          path: dist-one/*
           if-no-files-found: error
           compression-level: 0
+
+  quality-gate:
+    name: Quality Gate
+    if: always()
+    needs: [static-contracts, cpu-algorithm, optional-mediapipe, release-archive]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every quality job to succeed
+        env:
+          STATIC_RESULT: ${{ needs.static-contracts.result }}
+          CPU_RESULT: ${{ needs.cpu-algorithm.result }}
+          MEDIAPIPE_RESULT: ${{ needs.optional-mediapipe.result }}
+          ARCHIVE_RESULT: ${{ needs.release-archive.result }}
+        run: |
+          test "$STATIC_RESULT" = success
+          test "$CPU_RESULT" = success
+          test "$MEDIAPIPE_RESULT" = success
+          test "$ARCHIVE_RESULT" = success

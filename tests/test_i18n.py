@@ -34,17 +34,23 @@ class I18nContractTests(unittest.TestCase):
             cls.node_defs[locale] = json.loads(
                 (ROOT / "locales" / locale / "nodeDefs.json").read_text(encoding="utf-8")
             )
+        cls.public_classes = {
+            class_id: node_class
+            for class_id, node_class in cls.package.NODE_CLASS_MAPPINGS.items()
+            if not getattr(node_class, "DEV_ONLY", False)
+        }
 
     def test_class_ids_are_stable_and_not_duplicated_per_language(self):
         self.assertEqual(
-            set(self.package.NODE_CLASS_MAPPINGS),
+            set(self.public_classes),
             {"SkinBeautySettingsCN", "SkinBeautyProcessorCN"},
         )
+        self.assertTrue(self.package.NODE_CLASS_MAPPINGS["SkinBeautyPreviewSinkCN"].DEV_ONLY)
         for locale in ("en", "zh"):
-            self.assertEqual(set(self.node_defs[locale]), set(self.package.NODE_CLASS_MAPPINGS))
+            self.assertEqual(set(self.node_defs[locale]), set(self.public_classes))
 
     def test_all_internal_input_keys_have_translations(self):
-        classes = self.package.NODE_CLASS_MAPPINGS
+        classes = self.public_classes
         for class_id, node_class in classes.items():
             schema = node_class.INPUT_TYPES()
             expected = set(schema.get("required", {})) | set(schema.get("optional", {}))
@@ -53,7 +59,7 @@ class I18nContractTests(unittest.TestCase):
                 self.assertEqual(translated, expected, f"{locale}/{class_id}")
 
     def test_combo_option_keys_preserve_python_internal_values(self):
-        classes = self.package.NODE_CLASS_MAPPINGS
+        classes = self.public_classes
         for class_id, node_class in classes.items():
             schema = node_class.INPUT_TYPES()
             for input_name, definition in schema.get("required", {}).items():
@@ -65,7 +71,7 @@ class I18nContractTests(unittest.TestCase):
                     self.assertEqual(set(options), set(values), f"{locale}/{class_id}/{input_name}")
 
     def test_output_indexes_and_canvas_keys_are_complete(self):
-        for class_id, node_class in self.package.NODE_CLASS_MAPPINGS.items():
+        for class_id, node_class in self.public_classes.items():
             expected_outputs = {str(index) for index in range(len(node_class.RETURN_TYPES))}
             for locale in ("en", "zh"):
                 self.assertEqual(set(self.node_defs[locale][class_id]["outputs"]), expected_outputs)

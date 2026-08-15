@@ -26,6 +26,14 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.nodes[274]["type"], "SkinBeautyProcessorCN")
         self.assertEqual(self.nodes[275]["type"], "MarkdownNote")
 
+    def test_v222_version_display_is_current(self):
+        version_notes = [
+            node for node in self.workflow["nodes"]
+            if "v2.2.2" in str(node.get("title", ""))
+            or "v2.2.2" in str(node.get("widgets_values", ""))
+        ]
+        self.assertTrue(version_notes)
+
     def test_both_processed_images_feed_node_186(self):
         self.assertEqual(self.nodes[186]["inputs"][3]["link"], 647)
         self.assertEqual(self.nodes[186]["inputs"][4]["link"], 650)
