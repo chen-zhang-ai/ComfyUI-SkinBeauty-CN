@@ -12,6 +12,7 @@
 - 核心 `dependencies = []`，无根 requirements/install 脚本、无自动 pip、无 cv2。
 - MediaPipe 模型下载改为固定 HTTPS 版本和 SHA256，带超时、大小上限、`.part`、加载校验与原子替换。
 - 删除浏览器近似美白，自动/手动预览都使用同一后端真实算法。
+- 增加经授权、去 metadata 的界面截图；Release 附带 3 秒静音并排视频 `skinbeauty-video-comparison.mp4` 及独立 SHA256 文件。两路运动不逐帧锁定，仅作动态观感展示。
 
 ### 安装与升级
 
@@ -44,6 +45,7 @@ Natural person-skin correction for ComfyUI: shift yellow/warm skin toward a cool
 - Core `dependencies = []`: no root requirements/install script, runtime pip, or cv2.
 - Fixed HTTPS MediaPipe model version and SHA256 with timeout, size limit, `.part`, load validation, and atomic replacement.
 - Exact backend processing replaces the old approximate browser whitening preview.
+- Authorized metadata-free screenshots are included. The Release adds a three-second silent side-by-side `skinbeauty-video-comparison.mp4` and its own SHA256 file; the two motions are not frame-locked and are presented only as a dynamic visual example.
 
 ### Install and upgrade
 

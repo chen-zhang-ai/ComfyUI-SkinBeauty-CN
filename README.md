@@ -17,6 +17,18 @@
 
 相较多个调色、蒙版和预览节点拼接，本项目把共享参数、统一蒙版、精确预览和最终输出放在两个节点内，减少依赖和工作流噪声，也避免预览算法与正式输出不一致。
 
+## 界面与效果展示
+
+![完整预设列表](docs/assets/presets.png)
+
+![参数面板与节点内精确对比](docs/assets/before-after-comparison.png)
+
+| 对比线靠右：原图占比更高 | 对比线靠左：处理结果占比更高 |
+|---|---|
+| ![节点内处理前观察](docs/assets/before.png) | ![节点内处理后观察](docs/assets/after.png) |
+
+展示素材由项目所有者制作或取得公开授权；截图显示的自定义参数仅用于功能演示，实际效果会随输入、光线与蒙版而变化。两段授权视频已合成为静音并排短片，左右运动并非逐帧锁定，不用于夸大算法效果：[下载视频对比](https://github.com/likun199679-bot/ComfyUI-SkinBeauty-CN/releases/download/v2.2.1/skinbeauty-video-comparison.mp4)。图片和视频均已重新编码并扫描，未保留 workflow、prompt、本机路径或软件 metadata，详见 [`docs/assets/README.md`](docs/assets/README.md)。
+
 ## 节点、预设与参数
 
 `人物肤色美白｜参数面板` 可连接多个处理节点。预设：`关闭`、`低档·自然提亮`、`中档·自然冷白`、`高档·通透冷白`、`冷白皮`、`粉润白`、`奶油白`，选择后仍可微调。

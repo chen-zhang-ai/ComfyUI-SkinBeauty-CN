@@ -17,6 +17,18 @@ ComfyUI nodes for naturally shifting yellow or warm face and body skin toward a 
 
 Compared with wiring separate mask, grading, smoothing, and preview nodes, this package keeps shared parameters, masking, exact preview, and final processing consistent while reducing dependencies and graph clutter.
 
+## Interface and effect preview
+
+![Complete preset list](docs/assets/presets.png)
+
+![Settings panel and in-node exact comparison](docs/assets/before-after-comparison.png)
+
+| Divider toward the right: more source image | Divider toward the left: more processed result |
+|---|---|
+| ![Inspecting the source side](docs/assets/before.png) | ![Inspecting the processed side](docs/assets/after.png) |
+
+The project owner created these assets or holds publication rights. The custom settings shown are a functional demonstration; results vary with the input, lighting, and mask. Two authorized clips were combined into a silent side-by-side preview. Their motion is not frame-locked, so it must not be read as a scientific pixel comparison: [download the comparison video](https://github.com/likun199679-bot/ComfyUI-SkinBeauty-CN/releases/download/v2.2.1/skinbeauty-video-comparison.mp4). Images and video were re-encoded and scanned with no workflow, prompt, local path, or software metadata retained; see [`docs/assets/README.md`](docs/assets/README.md).
+
 ## Nodes, presets, and controls
 
 `Skin Beauty Settings` can drive multiple processors. Presets are Off, Low Natural Brightening, Medium Natural Cool White, High Translucent Cool White, Cool White Skin, Rosy White, and Creamy White. Presets remain editable.
